@@ -1,29 +1,30 @@
 class HistoryModel {
-  final String namaMakanan;
-  final List<String> bahan;
-  final List<String> langkah;
+  final String stasiunAwal;
+  final String stasiunAkhir;
+  final List<String> jadwal;
 
   HistoryModel({
-    required this.namaMakanan,
-    required this.bahan,
-    required this.langkah,
+    required this.stasiunAwal,
+    required this.stasiunAkhir,
+    required this.jadwal,
   });
 
   // Konversi ke Map (untuk Hive)
   Map<String, dynamic> toMap() {
     return {
-      'namaMakanan': namaMakanan,
-      'bahan': bahan,
-      'langkah': langkah,
+      'stasiunAwal': stasiunAwal,
+      'stasiunAkhir': stasiunAkhir,
+      'jadwal': jadwal,
     };
   }
 
   // Buat dari Map (untuk Hive)
   factory HistoryModel.fromMap(Map<String, dynamic> map) {
-    return HistoryModel(
-      namaMakanan: map['namaMakanan'],
-      bahan: List<String>.from(map['bahan']),
-      langkah: List<String>.from(map['langkah']),
-    );
-  }
+  return HistoryModel(
+    stasiunAwal: map['stasiunAwal'] ?? '',  // Beri nilai default jika null
+    stasiunAkhir: map['stasiunAkhir'] ?? '',
+    jadwal: (map['jadwal'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+  );
+}
+
 }

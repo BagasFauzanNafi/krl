@@ -7,216 +7,252 @@ import 'package:schedule_generator/screen/history/history_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = false;
-  final List<Map<String, dynamic>> _foods = [];
-  final TextEditingController _foodController = TextEditingController();
   String? errorMessage;
+  final TextEditingController _stasiunAwalController = TextEditingController();
+  final TextEditingController _stasiunAkhirController = TextEditingController();
+  List<String> jadwalKRL = [];
 
-  List<String> bahan = [];
-  List<String> langkah = [];
+  Future<void> generateSchedule() async {
+    if (_stasiunAwalController.text.isEmpty || _stasiunAkhirController.text.isEmpty) return;
 
-
-
-Future<void> generateRecipe() async {
-  if (_foodController.text.isEmpty) return;
-
-  setState(() {
-    _isLoading = true;
-    errorMessage = null;
-    _foods.clear();
-    _foods.add({
-      'nama_makanan': _foodController.text,
-      'bahan': [],
-      'langkah': [],
+    setState(() {
+      _isLoading = true;
+      errorMessage = null;
+      jadwalKRL.clear();
     });
-    _foodController.clear();
-  });
 
-  try {
-    final result = await GeminiServices.generateRecipe(_foods);
-    
-    if (result.containsKey('error')) {
+    try {
+      final result = await GeminiServices.getKRLSchedule(
+        _stasiunAwalController.text,
+        _stasiunAkhirController.text,
+      );
+
+      if (result.containsKey('error')) {
+        setState(() {
+          _isLoading = false;
+          errorMessage = result['error'];
+        });
+        return;
+      }
+
+      setState(() {
+        jadwalKRL = List<String>.from(result['jadwal'] ?? []);
+        _isLoading = false;
+      });
+
+      final box = Hive.box('historyBox');
+      final history = HistoryModel(
+        stasiunAwal: _stasiunAwalController.text,
+        stasiunAkhir: _stasiunAkhirController.text,
+        jadwal: jadwalKRL,
+      );
+      box.add(history.toMap());
+    } catch (e) {
       setState(() {
         _isLoading = false;
-        errorMessage = result['error'];
+        errorMessage = 'Gagal mendapatkan jadwal KRL\n$e';
       });
-      return;
     }
-
-    setState(() {
-      bahan = List<String>.from(result['bahan'] ?? []);
-      langkah = List<String>.from(result['langkah'] ?? []);
-      _isLoading = false;
-    });
-
-
-    final box = Hive.box('historyBox');
-    final history = HistoryModel(
-      namaMakanan: result['nama_makanan'],
-      bahan: List<String>.from(result['bahan'] ?? []),
-      langkah: List<String>.from(result['langkah'] ?? []),
-    );
-    box.add(history.toMap());
-
-  } catch (e) {
-    setState(() {
-      _isLoading = false;
-      errorMessage = 'Gagal menghasilkan resep\n$e';
-    });
   }
-}
-
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBodyBehindAppBar: true,
-     appBar: AppBar(
-        title: const Text('Recipe Generator'),
+      appBar: AppBar(
+        title: const Text('Jadwal KRL Jakarta'),
         centerTitle: true,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        flexibleSpace: ClipRRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              color: Colors.white.withOpacity(0.2),
+        backgroundColor: Colors.redAccent,
+      ),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Background Image
+          Container(
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/bg.png'), // Path ke gambar
+                fit: BoxFit.cover, // Sesuaikan ukuran gambar
+              ),
             ),
           ),
-        ),
-      ),
-
-      body: Container(
-        decoration: const BoxDecoration(
-           color: Color.fromARGB(255, 255, 255, 255),
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 100),
-              
-              TextField(
-                controller: _foodController,
-                decoration: InputDecoration(
-                  hintText: 'Nama Makanan',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  filled: true,
-                  fillColor: Colors.orange.withOpacity(0.8),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              ElevatedButton.icon(
-                onPressed: _isLoading ? null : generateRecipe,
-                label: Text(
-                  _isLoading ? 'Generating ...' : 'Generate Recipe',
-                  style: const TextStyle(color: Colors.white),
-                ),
-                icon: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 1,
+          // Konten Utama
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                Card(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                  elevation: 4,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TextField(
+                          controller: _stasiunAwalController,
+                          decoration: InputDecoration(
+                            labelText: 'Stasiun Awal',
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
                         ),
-                      )
-                    : const Icon(Icons.schedule, color: Colors.white),
-                style: ElevatedButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: _stasiunAkhirController,
+                          decoration: InputDecoration(
+                            labelText: 'Stasiun Akhir',
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  backgroundColor: Colors.orange,
                 ),
-              ),
-              
-              const SizedBox(height: 16),
-             if (bahan.isNotEmpty || langkah.isNotEmpty)
-  Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-
-      Center(
-        child: Text(
-          _foods.isNotEmpty ? _foods.first['nama_makanan'] : '',
-          style: const TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
-          ),
-        ),
-      ),
-      const SizedBox(height: 16), 
-
-
-      _buildGlassCard("Bahan", bahan),
-      const SizedBox(height: 16),
-
-
-      _buildGlassCard("Langkah", langkah),
-    ],
-  ),
-
-              
-              if (errorMessage != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 16.0),
-                  child: Text(
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: _isLoading ? null : generateSchedule,
+                  icon: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Icon(Icons.search),
+                  label: Text(_isLoading ? 'Mencari...' : 'Cari Jadwal'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+                if (jadwalKRL.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  // Informasi Harga KRL
+                  _buildPriceCard("Harga KRL", "Rp 10.000"), // Harga KRL
+                  const SizedBox(height: 16),
+                  // Daftar Jadwal
+                  _buildGlassCard("Jadwal KRL", jadwalKRL),
+                ],
+                if (errorMessage != null) ...[
+                  const SizedBox(height: 16),
+                  Text(
                     errorMessage!,
                     style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
                   ),
-                ),
-            ],
+                ],
+              ],
+            ),
           ),
-        ),
+        ],
       ),
-      floatingActionButton: FloatingActionButton(
-  onPressed: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const HistoryScreen()),
-    );
-  },
-  backgroundColor: Colors.orange, 
-  shape: const CircleBorder(), 
-  child: const Icon(Icons.history, color: Colors.white),
-),
-
+      floatingActionButton: Row(
+        mainAxisAlignment: MainAxisAlignment.end, // FAB di sisi kanan layar
+        children: [
+          FloatingActionButton(
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Rekomendasi'),
+                  content: const Text('Fitur rekomendasi masih dalam pengembangan.'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('OK'),
+                    ),
+                  ],
+                ),
+              );
+            },
+            backgroundColor: Colors.blueAccent,
+            child: const Icon(Icons.recommend),
+          ),
+          const SizedBox(width: 16), // Spasi antara FAB
+          FloatingActionButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const HistoryScreen()),
+              );
+            },
+            backgroundColor: Colors.redAccent,
+            child: const Icon(Icons.history),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildGlassCard(String title, List<String> items) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(15),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(15),
-            border: Border.all(color: Colors.white.withOpacity(0.3)),
+ Widget _buildGlassCard(String title, List<String> items) {
+  return Card(
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+    elevation: 4,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black),
-              ),
-              const SizedBox(height: 8),
-              ...items.map((item) => Text("- $item", style: const TextStyle(color: Colors.black))),
-            ],
-          ),
+          const SizedBox(height: 16),
+          ...items.map((item) => Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.access_time, color: Colors.redAccent, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded( // Pembungkusan teks otomatis
+                    child: Text(
+                      item,
+                      style: const TextStyle(fontSize: 16),
+                      overflow: TextOverflow.ellipsis, // Tambahkan elipsis jika terlalu panjang
+                      maxLines: 2, // Batasi maksimal 2 baris
+                    ),
+                  ),
+                ],
+              )),
+        ],
+      ),
+    ),
+  );
+}
+
+
+  Widget _buildPriceCard(String title, String price) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      elevation: 4,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                const Icon(Icons.attach_money, color: Colors.green, size: 24),
+                const SizedBox(width: 8),
+                Text(
+                  price,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );

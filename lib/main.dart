@@ -10,7 +10,7 @@ void main() async {
   await Hive.openBox('historyBox');
   runApp(
     DevicePreview(
-      enabled: true, 
+      enabled: false, 
       builder: (context) => const MainApp(),
     ),
   );
